@@ -7,34 +7,37 @@
 
 package frc.robot;
 
+import edu.wpi.cscore.UsbCamera;
+import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.Joystick;
-import edu.wpi.first.wpilibj.PWMVictorSPX;
-import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.TimedRobot;
 
-/**
- * This sample program shows how to control a motor using a joystick. In the
- * operator control part of the program, the joystick is read and the value is
- * written to the motor.
- *
- * <p>Joystick analog values range from -1 to 1 and speed controller inputs also
- * range from -1 to 1 making it easy to work together.
- */
 public class Robot extends TimedRobot {
-  private static final int kMotorPort = 0;
-  private static final int kJoystickPort = 0;
-
-  private SpeedController m_motor;
-  private Joystick m_joystick;
-
+  private final int kJoystickPort = 0;
+  private final int kJoystickPort2 = 1;
+  private Joystick leftJoyStick,rightJoyStick;
+  private ChassisControl chassis;
+  private UsbCamera camera;
+  public Robot(){
+    chassis = new ChassisControl(0, 1, 2, 3);
+  }
   @Override
-  public void robotInit() {
-    m_motor = new PWMVictorSPX(kMotorPort);
-    m_joystick = new Joystick(kJoystickPort);
+  public void robotInit() {  
+    leftJoyStick = new Joystick(kJoystickPort);
+    rightJoyStick = new Joystick(kJoystickPort2);
+    camera = CameraServer.getInstance().startAutomaticCapture();
+    camera.setResolution(800,600);
+    camera.setFPS(60);
   }
 
+  //Auton code here, used Init because only run once
+  @Override
+  public void autonomousInit() {
+  }
+
+  //Teleop code here
   @Override
   public void teleopPeriodic() {
-    m_motor.set(m_joystick.getY());
+    chassis.tankDrive(leftJoyStick.getY(), rightJoyStick.getY());
   }
 }
