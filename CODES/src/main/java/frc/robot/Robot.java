@@ -18,6 +18,7 @@ public class Robot extends TimedRobot {
   private Joystick leftJoyStick,rightJoyStick;
   private ChassisControl chassis;
   private UsbCamera camera;
+  private boolean isTeleop = false;
   public Robot(){
     chassis = new ChassisControl(0, 1, 2, 3);
   }
@@ -35,9 +36,27 @@ public class Robot extends TimedRobot {
   public void autonomousInit() {
   }
 
+  //Init Code
+  @Override
+  public void teleopInit() {
+      isTeleop=this.isOperatorControl();
+      //New Thread
+      {
+      Thread t = new Thread(){
+          @Override
+          public void run(){
+            while(isTeleop){
+  
+            }
+          }
+      };
+      t.start();}
+  }
+
   //Teleop code here
   @Override
   public void teleopPeriodic() {
     chassis.tankDrive(leftJoyStick.getY(), rightJoyStick.getY());
+    isTeleop=this.isOperatorControl();
   }
 }
