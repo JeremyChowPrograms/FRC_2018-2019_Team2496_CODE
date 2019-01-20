@@ -9,6 +9,7 @@ package frc.robot;
 
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.Encoder;
@@ -16,6 +17,7 @@ import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.SpeedController;
 import edu.wpi.first.wpilibj.Talon;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
@@ -24,10 +26,13 @@ public class Robot extends TimedRobot {
   private Joystick leftJoyStick, rightJoyStick;
   private ChassisControl chassis;
   private UsbCamera camera;
-  private Encoder liftEncoder;
+  private Encoder liftEncoder, leftE, rightE;
   private SpeedController liftMotor;
   private SpeedController claw;
   private boolean isTeleop = false;
+
+  private ADXRS450_Gyro gyro = new ADXRS450_Gyro();
+
   private Compressor compressor;
   private DigitalLib left, mid, right;
 
@@ -42,8 +47,15 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotInit() {
+    gyro.reset();
+    gyro.calibrate();
+    gyro.reset();
     liftEncoder = new Encoder(0, 1);
+    leftE = new Encoder(2, 3);
+    rightE = new Encoder(4, 5);
     liftEncoder.setDistancePerPulse(Math.PI / 200);
+    leftE.setDistancePerPulse(6 * Math.PI / 200);
+    rightE.setDistancePerPulse(6 * Math.PI / 200);
     leftJoyStick = new Joystick(kJoystickPort);
     rightJoyStick = new Joystick(kJoystickPort2);
     claw = new Talon(5);
@@ -66,6 +78,64 @@ public class Robot extends TimedRobot {
   // Auton code here, used Init because only run once
   @Override
   public void autonomousInit() {
+    encoderForward(72, 0.4);
+  }
+
+  private void leftTurn(double degrees, double speed) {
+    gyro.reset();
+    double doPid = 0;
+    PIDLib pid = new PIDLib(0.008f, 0, 0.00001, 0);
+    while (degrees + gyro.getAngle() > 5) {
+      doPid = pid.PID(gyro.getAngle(), -degrees - 5);
+      chassis.tankDrive(-speed - doPid, speed + doPid);
+    }
+    chassis.tankDrive(speed, -speed);
+    Timer.delay(0.1);
+    chassis.tankDrive(0, 0);
+  }
+
+  private void rightTurn(double degrees, double speed) {
+
+    gyro.reset();
+    double doPid = 0;
+    PIDLib pid = new PIDLib(0.008f, 0, 0.00001, 0);
+    while (degrees - 5 > gyro.getAngle()) {
+      doPid = pid.PID(gyro.getAngle(), degrees + 5);
+      chassis.tankDrive(speed + doPid, -speed - doPid);
+    }
+    chassis.tankDrive(-speed, speed);
+    Timer.delay(0.1);
+    chassis.tankDrive(0, 0);
+  }
+
+  private void encoderForward(double distance, double baseSpeed) {
+
+    leftE.reset();
+    rightE.reset();
+    double kin = 0;
+    double kinscale = 0.01;
+    while ((leftE.getDistance() < distance || rightE.getDistance() < distance)) {
+      chassis.tankDrive(baseSpeed - kin * kinscale, baseSpeed + kin * kinscale);
+      kin = (leftE.getDistance() - rightE.getDistance());
+    }
+    chassis.tankDrive(-1, -1);
+    Timer.delay(0.1);
+    chassis.tankDrive(0, 0);
+  }
+
+  private void encoderBackward(double distance, double baseSpeed) {
+
+    leftE.reset();
+    rightE.reset();
+    double kin = 0;
+    double kinscale = 0.01;
+    while ((leftE.getDistance() > distance || rightE.getDistance() > distance)) {
+      chassis.tankDrive(-baseSpeed - kin * kinscale, -baseSpeed + kin * kinscale);
+      kin = -(leftE.getDistance() - rightE.getDistance());
+    }
+    chassis.tankDrive(1, 1);
+    Timer.delay(0.1);
+    chassis.tankDrive(0, 0);
   }
 
   // Init Code
@@ -77,6 +147,7 @@ public class Robot extends TimedRobot {
         @Override
         public void run() {
           PIDLib pid = new PIDLib(0.3, 0, 0.03, 0.0);
+          liftEncoder.reset();
           while (isTeleop) {
             liftMotor.set(pid.PID(liftEncoder.getDistance(), liftHeight));
           }
@@ -84,6 +155,11 @@ public class Robot extends TimedRobot {
       };
       t.start();
     }
+  }
+
+  @Override
+  public void disabledInit() {
+    isTeleop = false;
   }
 
   // Teleop code here
