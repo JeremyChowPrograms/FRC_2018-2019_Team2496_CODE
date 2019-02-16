@@ -51,6 +51,7 @@ public class Robot extends TimedRobot {
 
     // The params for constructors might change due to design and such, change if
     // required
+    SmartDashboard.putNumber("Height", 3.0);
     liftEncoder = new Encoder(8, 7);
     leftE = new Encoder(0, 1, 2);
     rightE = new Encoder(3, 4, 5);
@@ -145,20 +146,31 @@ public class Robot extends TimedRobot {
     rightE.reset();
   }
 
-  private PIDLib motorPid = new PIDLib(0.5, 0.001, 0.1, 0.01);
+  private PIDLib motorPid = new PIDLib(0.10, 0.001, 0.1, 0.01);
   private double output;
-
+//19 28
   // Teleop code here
   @Override
   public void teleopPeriodic() {
     // Info, nop region
     {
       SmartDashboard.setDefaultNumber("Value", leftJoyStick.getZ());
+      SmartDashboard.putNumber("LH", liftHeight);
+      SmartDashboard.putNumber("LE", liftEncoder
+      .getDistance());
     }
     output = motorPid.doPID(liftHeight - liftEncoder.getDistance());
     // Op region
     {
+      if(altController.getRawButton(2)){
+        liftHeight=3.0d;
+      }
+if(altController.getRawButton(3)){
+liftHeight+=0.01d;
+}if(altController.getRawButton(4)){
 
+  liftHeight-=0.01d;
+}
       if (altController.getRawButton(7)) {
         compressor.setClosedLoopControl(false);
       } else if (altController.getRawButton(8)) {
@@ -170,16 +182,17 @@ public class Robot extends TimedRobot {
         rightTurn(90, 0.4);
       }
       if (altController.getRawButton(1)) {
-        liftHeight = 0.0d;
+        liftHeight = -1.5d;
         liftEncoder.reset();
       }
       if (altController.getRawButton(5)) {
-        liftMotor.set(-0.5);
+        liftHeight = 
+        SmartDashboard.getNumber("Height", 3.0);;
       } else if (altController.getRawButton(6)) {
-        liftMotor.set(0.3);
+        liftHeight=0.0d;
       } else {
 
-        // liftMotor.set(-output);
+         liftMotor.set(-output);
       }
       if (rightJoyStick.getRawButton(4)) {
         intake.set(DoubleSolenoid.Value.kForward);
