@@ -1,26 +1,41 @@
 package frc.robot;
 
 public class PIDLib {
-    private double kp, ki, kd;
-    private double target, error = 0.0d;
-    private double errorprev;
-    private double integral = 0.0d, integral_lim, derivative;
-
-    public PIDLib(double kp, double ki, double kd, double integral_lim) {
-        this.kp = kp;
-        this.ki = ki;
-        this.kd = kd;
-        this.integral_lim = integral_lim;
+    long deltaT;
+    long prevT;
+    double kP;
+    double kI;
+    double kD;
+    double integLimit;
+    double integData;
+    double prevError = 0, prevTime = 0;
+    
+    public PIDLib(double kP, double kI, double kD, double integLimit) {
+      this.kP = kP;
+      this.kI = kI;
+      this.kD = kD;
+      this.integLimit = integLimit;
     }
-
-    public double PID(double input, double target) {
-        this.target = target;
-        this.errorprev = this.error;
-        this.error = this.target - input;
-        if (this.error < integral_lim && this.error > -integral_lim) {
-            integral += this.error;
-        }
-        this.derivative = this.error - this.errorprev;
-        return this.kp * this.error + this.ki * this.integral + this.kd * this.derivative;
+    
+    public void updateSpeed(double kP, double kI, double kD, double integLimit){
+          this.kP = kP;
+          this.kI = kI;
+          this.kD = kD;
+          this.integLimit = integLimit;
     }
+    
+   
+  
+  
+    public double doPID(double error) {
+      deltaT = (System.nanoTime() - prevT);
+      prevT = System.nanoTime();
+      
+      double P = error * kP;
+      double I = 0.0f; //you dont need this right now
+      double D = (error-prevError)/deltaT * kD;
+      prevError = error;
+      return (P + I + D); 
+    }
+  
 }
