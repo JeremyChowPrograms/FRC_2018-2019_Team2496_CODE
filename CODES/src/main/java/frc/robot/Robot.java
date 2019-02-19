@@ -7,6 +7,12 @@
 
 package frc.robot;
 
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.Scanner;
+
+import javax.swing.plaf.synth.SynthSpinnerUI;
+
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.ADXRS450_Gyro;
@@ -41,20 +47,60 @@ public class Robot extends TimedRobot {
   public Robot() {
   }
 
+  private final int piWIDTH = 640;
+  private final int piHEIGHT = 480;
+  private double receivefrompi = 0.0d;
+
   @Override
   public void robotInit() {
+    Thread t = new Thread() {
+      public void run() {
+        try {
+          ServerSocket server = new ServerSocket(1234);
+          Socket pi = server.accept();
+          Scanner sc = new Scanner(pi.getInputStream());
+          while (!isInterrupted()) {
+            System.out.println("running");
+            try {
+              String tp1 = sc.next();
+              float x1 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
+              tp1 = sc.next();
+              float x2 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
+              tp1 = sc.next();
+              float y1 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
+              tp1 = sc.next();
+              float y2 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
+              float s1 = (x2 - x1) / (y2 - y1);
+              float lx1 = x1 - (s1 * y1);
+              receivefrompi = lx1;
+              System.out.println("lx1: " + lx1);
+            } catch (Exception e1) {
+              pi = server.accept();
+              sc = new Scanner(pi.getInputStream());
+              System.out.println("NOTHING");
+            }
+          }
+          sc.close();
+          server.close();
+        } catch (Exception e) {
+
+        }
+        System.out.println("thread ended");
+      }
+    };
+    t.start();
     // Ports according to design table
     chassis = new ChassisControl(2, 0, 1, 3);
 
-    gyro.calibrate();
+    // gyro.calibrate();
     gyro.reset();
 
     // The params for constructors might change due to design and such, change if
     // required
-    SmartDashboard.putNumber("Height", 3.0);
+    SmartDashboard.putNumber("Height", 20.0d);
     liftEncoder = new Encoder(8, 7);
-    leftE = new Encoder(0, 1, 2);
-    rightE = new Encoder(3, 4, 5);
+    leftE = new Encoder(0, 1);
+    rightE = new Encoder(4, 3);
     liftEncoder.setDistancePerPulse(Math.PI / 200);
     leftE.setDistancePerPulse(6 * Math.PI / 200);
     rightE.setDistancePerPulse(6 * Math.PI / 200);
@@ -65,22 +111,21 @@ public class Robot extends TimedRobot {
     claw2 = new Talon(7);
     liftMotor = new Talon(5);
     compressor = new Compressor();
-    compressor.setClosedLoopControl(true);
+    compressor.setClosedLoopControl(false);
     liftsol = new DoubleSolenoid(0, 1);
     intake = new DoubleSolenoid(2, 3);
     if (useCamera) {
-      camera = CameraServer.getInstance().startAutomaticCapture(1);
+      camera = CameraServer.getInstance().startAutomaticCapture();
       camera.setResolution(400, 300);
       camera.setFPS(120);
     }
   }
 
-  // Auton code here, used Init because only run once
-  @Override
-  public void autonomousInit() {
-    // encoderForward(72, 0.4);
-  }
-
+  /*
+   * // Auton code here, used Init because only run once
+   * 
+   * @Override public void autonomousInit() { }
+   */
   // These are the macros that can be used in either auton or teleop
   private void leftTurn(double degrees, double speed) {
     gyro.reset();
@@ -88,9 +133,9 @@ public class Robot extends TimedRobot {
     PIDLib pid = new PIDLib(0.008f, 0, 0.00001, 0);
     while (degrees + gyro.getAngle() > 5) {
       doPid = pid.doPID(-degrees - 5 - gyro.getAngle());
-      chassis.tankDrive(-speed - doPid, speed + doPid);
+      chassis.tankDrive(speed + doPid, -speed - doPid);
     }
-    chassis.tankDrive(speed, -speed);
+    chassis.tankDrive(-speed, speed);
     Timer.delay(0.1);
     chassis.tankDrive(0, 0);
   }
@@ -111,6 +156,8 @@ public class Robot extends TimedRobot {
 
   private void encoderForward(double distance, double baseSpeed) {
 
+    leftE.reset();
+    rightE.reset();
     leftE.reset();
     rightE.reset();
     double kin = 0;
@@ -146,53 +193,58 @@ public class Robot extends TimedRobot {
     rightE.reset();
   }
 
-  private PIDLib motorPid = new PIDLib(0.10, 0.001, 0.1, 0.01);
+  private PIDLib motorPid = new PIDLib(0.3, 0.001, 0.1, 0.01);
+  private PIDLib motorPid2 = new PIDLib(0.03, 0.001, 0.1, 0.01);
+  private PIDLib motorPid3 = new PIDLib(0.003, 0.001, 0.1, 0.01);
+  private PIDLib motorPid4 = new PIDLib(0.1, 0.001, 0.1, 0.01);
   private double output;
-//19 28
+
+  private boolean cball = false;
+
   // Teleop code here
   @Override
   public void teleopPeriodic() {
     // Info, nop region
     {
-      SmartDashboard.setDefaultNumber("Value", leftJoyStick.getZ());
       SmartDashboard.putNumber("LH", liftHeight);
-      SmartDashboard.putNumber("LE", liftEncoder
-      .getDistance());
+      SmartDashboard.putNumber("LE", liftEncoder.getDistance());
+      SmartDashboard.putNumber("Gyro", gyro.getAngle());
+      SmartDashboard.putNumber("Left E", leftE.getDistance());
+      SmartDashboard.putNumber("Right E", rightE.getDistance());
     }
-    output = motorPid.doPID(liftHeight - liftEncoder.getDistance());
+    if (liftHeight > liftEncoder.getDistance()) {
+      if (cball) {
+        output = motorPid.doPID(liftHeight - liftEncoder.getDistance());
+      } else {
+        output = motorPid4.doPID(liftHeight - liftEncoder.getDistance());
+      }
+    } else
+      output = motorPid2.doPID(liftHeight - liftEncoder.getDistance());
     // Op region
     {
-      if(altController.getRawButton(2)){
-        liftHeight=3.0d;
+      if (altController.getRawButton(3)) {
+        liftHeight += 0.1d;
       }
-if(altController.getRawButton(3)){
-liftHeight+=0.01d;
-}if(altController.getRawButton(4)){
-
-  liftHeight-=0.01d;
-}
+      if (altController.getRawButton(2)) {
+        liftHeight -= 0.5d;
+      }
       if (altController.getRawButton(7)) {
         compressor.setClosedLoopControl(false);
       } else if (altController.getRawButton(8)) {
         compressor.setClosedLoopControl(true);
       }
-      if (leftJoyStick.getRawButton(8)) {
-        leftTurn(90, 0.4);
-      } else if (leftJoyStick.getRawButton(9)) {
-        rightTurn(90, 0.4);
-      }
       if (altController.getRawButton(1)) {
-        liftHeight = -1.5d;
+        liftHeight = -5d;
         liftEncoder.reset();
       }
       if (altController.getRawButton(5)) {
-        liftHeight = 
-        SmartDashboard.getNumber("Height", 3.0);;
+        liftHeight = SmartDashboard.getNumber("Height", 3.0);
+        ;
       } else if (altController.getRawButton(6)) {
-        liftHeight=0.0d;
+        liftHeight = 0.0d;
       } else {
 
-         liftMotor.set(-output);
+        liftMotor.set(-output);
       }
       if (rightJoyStick.getRawButton(4)) {
         intake.set(DoubleSolenoid.Value.kForward);
@@ -200,19 +252,60 @@ liftHeight+=0.01d;
         intake.set(DoubleSolenoid.Value.kReverse);
       }
       if (leftJoyStick.getRawButton(4)) {
-        claw.set(1);
-        claw2.set(1);
+        claw.set(.7);
+        claw2.set(-.7);
       } else if (leftJoyStick.getRawButton(5)) {
-        claw.set(-1);
-        claw2.set(-1);
+        claw.set(-.7);
+        claw2.set(.7);
+      } else {
+        claw.set(0.0);
+        claw2.set(0.0);
+      }
+      if (rightJoyStick.getRawButton(3)) {
+        cball = false;
+        liftHeight = 22.0d;
+        // double sde = motorPid3.doPID(340 - receivefrompi);
+        // chassis.tankDrive(0.1 - sde, 0.1 + sde);
+      } // else {
+
+      chassis.tankDrive(-leftJoyStick.getY() * (-leftJoyStick.getZ() + 1.0) / 2.0,
+          -rightJoyStick.getY() * (-rightJoyStick.getZ() + 1.0) / 2.0);
+      // }
+      if (rightJoyStick.getRawButton(2)) {
+        cball = false;
+        liftHeight = 21.3d;
+      }
+      if (leftJoyStick.getRawButton(1)) {
+        cball = true;
+        liftHeight = 6.5d;
+      }
+      if (leftJoyStick.getRawButton(2)) {
+
+        cball = true;
+        liftHeight = 14.5d;
+      }
+      if (leftJoyStick.getRawButton(3)) {
+        cball = true;
+        liftHeight = 22.0d;
+      }
+      if (rightJoyStick.getRawButton(8)) {
+
+        liftsol.set(DoubleSolenoid.Value.kForward);
+      }
+      if (rightJoyStick.getRawButton(9)) {
+
+        liftsol.set(DoubleSolenoid.Value.kReverse);
+      }
+      if (rightJoyStick.getRawButton(1)) {
+        liftHeight = 14.4d;
+      }
+      if (leftJoyStick.getRawButton(8)) {
+        Timer.delay(0.5);
+
+        encoderForward(20, 0.4);
       }
       // TODO camera code
-      if (rightJoyStick.getRawButton(3)) {
 
-      } else {
-        chassis.tankDrive(-leftJoyStick.getY() * (-leftJoyStick.getZ() + 1.0) / 2.0,
-            -rightJoyStick.getY() * (-rightJoyStick.getZ() + 1.0) / 2.0);
-      }
     }
   }
 }

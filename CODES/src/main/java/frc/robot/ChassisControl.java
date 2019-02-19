@@ -17,7 +17,7 @@ public class ChassisControl {
         fl.set(left);
         bl.set(left);
         fr.set(right);
-        br.set(right);
+        br.set(-right);
     }
 
     public void arcadeDrive(double x, double y) {
@@ -26,6 +26,6 @@ public class ChassisControl {
         fl.set(left);
         bl.set(left);
         fr.set(right);
-        br.set(right);
+        br.set(-right);
     }
 }
