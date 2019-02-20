@@ -11,8 +11,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Scanner;
 
-import javax.swing.plaf.synth.SynthSpinnerUI;
-
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.ADXRS450_Gyro;
@@ -178,7 +176,7 @@ public class Robot extends TimedRobot {
     double kin = 0;
     double kinscale = 0.01;
     while ((leftE.getDistance() > distance || rightE.getDistance() > distance)) {
-      chassis.tankDrive(-baseSpeed - kin * kinscale, -baseSpeed + kin * kinscale);
+      chassis.tankDrive(-baseSpeed + kin * kinscale, -baseSpeed - kin * kinscale);
       kin = -(leftE.getDistance() - rightE.getDistance());
     }
     chassis.tankDrive(1, 1);
@@ -200,6 +198,7 @@ public class Robot extends TimedRobot {
   private double output;
 
   private boolean cball = false;
+  private double scale = 1.0d;
 
   // Teleop code here
   @Override
@@ -226,7 +225,7 @@ public class Robot extends TimedRobot {
         liftHeight += 0.1d;
       }
       if (altController.getRawButton(2)) {
-        liftHeight -= 0.5d;
+        liftHeight -= 0.3d;
       }
       if (altController.getRawButton(7)) {
         compressor.setClosedLoopControl(false);
@@ -234,7 +233,7 @@ public class Robot extends TimedRobot {
         compressor.setClosedLoopControl(true);
       }
       if (altController.getRawButton(1)) {
-        liftHeight = -5d;
+        liftHeight = -7d;
         liftEncoder.reset();
       }
       if (altController.getRawButton(5)) {
@@ -251,25 +250,25 @@ public class Robot extends TimedRobot {
       } else if (rightJoyStick.getRawButton(5)) {
         intake.set(DoubleSolenoid.Value.kReverse);
       }
-      if (leftJoyStick.getRawButton(4)) {
+      if (leftJoyStick.getRawButton(5)) {
         claw.set(.7);
-        claw2.set(-.7);
-      } else if (leftJoyStick.getRawButton(5)) {
-        claw.set(-.7);
         claw2.set(.7);
+      } else if (leftJoyStick.getRawButton(4)) {
+        claw.set(-.7);
+        claw2.set(-.7);
       } else {
         claw.set(0.0);
         claw2.set(0.0);
       }
       if (rightJoyStick.getRawButton(3)) {
         cball = false;
-        liftHeight = 22.0d;
+        liftHeight = 23.0d;
         // double sde = motorPid3.doPID(340 - receivefrompi);
         // chassis.tankDrive(0.1 - sde, 0.1 + sde);
       } // else {
 
-      chassis.tankDrive(-leftJoyStick.getY() * (-leftJoyStick.getZ() + 1.0) / 2.0,
-          -rightJoyStick.getY() * (-rightJoyStick.getZ() + 1.0) / 2.0);
+      chassis.tankDrive(-leftJoyStick.getY() *scale* (-leftJoyStick.getZ() + 1.0) / 2.0,
+          -rightJoyStick.getY() *scale* (-rightJoyStick.getZ() + 1.0) / 2.0);
       // }
       if (rightJoyStick.getRawButton(2)) {
         cball = false;
@@ -288,24 +287,37 @@ public class Robot extends TimedRobot {
         cball = true;
         liftHeight = 22.0d;
       }
-      if (rightJoyStick.getRawButton(8)) {
+      if (altController.getRawAxis(2) > 0.5) {
 
         liftsol.set(DoubleSolenoid.Value.kForward);
       }
-      if (rightJoyStick.getRawButton(9)) {
+      if (altController.getRawAxis(3) > 0.5) {
 
         liftsol.set(DoubleSolenoid.Value.kReverse);
       }
       if (rightJoyStick.getRawButton(1)) {
-        liftHeight = 14.4d;
+        cball=false;
+        liftHeight = 14.45d;
       }
       if (leftJoyStick.getRawButton(8)) {
         Timer.delay(0.5);
 
-        encoderForward(20, 0.4);
+        encoderForward(200, 0.4);
+      }
+      if (altController.getRawButton(4)) {
+        intake.set(DoubleSolenoid.Value.kForward);
+        Timer.delay(0.5);
+
+        encoderBackward(-200, 0.4);
       }
       // TODO camera code
-
+      if(altController.getRawButton(9)){
+        scale = 1.0d;
+      }
+      if(altController.getRawButton(10)){
+        scale = 1.0d/3.0d;
+      }
     }
+
   }
 }
