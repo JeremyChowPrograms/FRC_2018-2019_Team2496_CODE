@@ -13,7 +13,6 @@ import java.util.Scanner;
 
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.Encoder;
@@ -32,11 +31,9 @@ public class Robot extends TimedRobot {
   private SpeedController liftMotor;
   private SpeedController claw, claw2;
 
-  private ADXRS450_Gyro gyro = new ADXRS450_Gyro();
-
   private Compressor compressor;
 
-  private DoubleSolenoid liftsol, intake;
+  private DoubleSolenoid backsol, intake, frntsol;
 
   // False if not attached, will error if set true but cam not attached
   private boolean useCamera = true;
@@ -90,9 +87,6 @@ public class Robot extends TimedRobot {
     // Ports according to design table
     chassis = new ChassisControl(2, 0, 1, 3);
 
-    // gyro.calibrate();
-    gyro.reset();
-
     // The params for constructors might change due to design and such, change if
     // required
     SmartDashboard.putNumber("Height", 20.0d);
@@ -110,12 +104,17 @@ public class Robot extends TimedRobot {
     liftMotor = new Talon(5);
     compressor = new Compressor();
     compressor.setClosedLoopControl(false);
-    liftsol = new DoubleSolenoid(0, 1);
+    backsol = new DoubleSolenoid(0, 1);
     intake = new DoubleSolenoid(2, 3);
+    frntsol = new DoubleSolenoid(4, 5);
     if (useCamera) {
       camera = CameraServer.getInstance().startAutomaticCapture();
+      camera.setBrightness(0);
+      camera.setExposureAuto();
       camera.setResolution(400, 300);
       camera.setFPS(120);
+      camera.setWhiteBalanceAuto();
+
     }
   }
 
@@ -125,31 +124,10 @@ public class Robot extends TimedRobot {
    * @Override public void autonomousInit() { }
    */
   // These are the macros that can be used in either auton or teleop
-  private void leftTurn(double degrees, double speed) {
-    gyro.reset();
-    double doPid = 0;
-    PIDLib pid = new PIDLib(0.008f, 0, 0.00001, 0);
-    while (degrees + gyro.getAngle() > 5) {
-      doPid = pid.doPID(-degrees - 5 - gyro.getAngle());
-      chassis.tankDrive(speed + doPid, -speed - doPid);
-    }
-    chassis.tankDrive(-speed, speed);
-    Timer.delay(0.1);
-    chassis.tankDrive(0, 0);
-  }
 
-  private void rightTurn(double degrees, double speed) {
-
-    gyro.reset();
-    double doPid = 0;
-    PIDLib pid = new PIDLib(0.008f, 0, 0.00001, 0);
-    while (degrees - 5 > gyro.getAngle()) {
-      doPid = pid.doPID(degrees + 5 - gyro.getAngle());
-      chassis.tankDrive(speed + doPid, -speed - doPid);
-    }
-    chassis.tankDrive(-speed, speed);
-    Timer.delay(0.1);
-    chassis.tankDrive(0, 0);
+  @Override
+  public void autonomousPeriodic() {
+    teleopPeriodic();
   }
 
   private void encoderForward(double distance, double baseSpeed) {
@@ -198,6 +176,7 @@ public class Robot extends TimedRobot {
   private double output;
 
   private boolean cball = false;
+  private boolean it = false;
   private double scale = 1.0d;
 
   // Teleop code here
@@ -207,11 +186,10 @@ public class Robot extends TimedRobot {
     {
       SmartDashboard.putNumber("LH", liftHeight);
       SmartDashboard.putNumber("LE", liftEncoder.getDistance());
-      SmartDashboard.putNumber("Gyro", gyro.getAngle());
       SmartDashboard.putNumber("Left E", leftE.getDistance());
       SmartDashboard.putNumber("Right E", rightE.getDistance());
     }
-    if (liftHeight > liftEncoder.getDistance()) {
+    if (liftHeight > liftEncoder.getDistance() || it) {
       if (cball) {
         output = motorPid.doPID(liftHeight - liftEncoder.getDistance());
       } else {
@@ -225,7 +203,7 @@ public class Robot extends TimedRobot {
         liftHeight += 0.1d;
       }
       if (altController.getRawButton(2)) {
-        liftHeight -= 0.3d;
+        liftHeight -= 0.2d;
       }
       if (altController.getRawButton(7)) {
         compressor.setClosedLoopControl(false);
@@ -257,8 +235,8 @@ public class Robot extends TimedRobot {
         claw.set(-.7);
         claw2.set(-.7);
       } else {
-        claw.set(0.0);
-        claw2.set(0.0);
+        claw.set(0.07);
+        claw2.set(0.07);
       }
       if (rightJoyStick.getRawButton(3)) {
         cball = false;
@@ -267,8 +245,8 @@ public class Robot extends TimedRobot {
         // chassis.tankDrive(0.1 - sde, 0.1 + sde);
       } // else {
 
-      chassis.tankDrive(-leftJoyStick.getY() *scale* (-leftJoyStick.getZ() + 1.0) / 2.0,
-          -rightJoyStick.getY() *scale* (-rightJoyStick.getZ() + 1.0) / 2.0);
+      chassis.tankDrive(-leftJoyStick.getY() * scale * (-leftJoyStick.getZ() + 1.0) / 2.0,
+          -rightJoyStick.getY() * scale * (-rightJoyStick.getZ() + 1.0) / 2.0);
       // }
       if (rightJoyStick.getRawButton(2)) {
         cball = false;
@@ -276,7 +254,7 @@ public class Robot extends TimedRobot {
       }
       if (leftJoyStick.getRawButton(1)) {
         cball = true;
-        liftHeight = 6.5d;
+        liftHeight = 8d;
       }
       if (leftJoyStick.getRawButton(2)) {
 
@@ -287,17 +265,24 @@ public class Robot extends TimedRobot {
         cball = true;
         liftHeight = 22.0d;
       }
+      if (leftJoyStick.getRawButton(8)) {
+        frntsol.set(DoubleSolenoid.Value.kForward);
+      }
+      if (leftJoyStick.getRawButton(9)) {
+
+        frntsol.set(DoubleSolenoid.Value.kReverse);
+      }
       if (altController.getRawAxis(2) > 0.5) {
 
-        liftsol.set(DoubleSolenoid.Value.kForward);
+        backsol.set(DoubleSolenoid.Value.kForward);
       }
       if (altController.getRawAxis(3) > 0.5) {
 
-        liftsol.set(DoubleSolenoid.Value.kReverse);
+        backsol.set(DoubleSolenoid.Value.kReverse);
       }
       if (rightJoyStick.getRawButton(1)) {
-        cball=false;
-        liftHeight = 14.45d;
+        cball = false;
+        liftHeight = 14.5d;
       }
       if (leftJoyStick.getRawButton(8)) {
         Timer.delay(0.5);
@@ -306,16 +291,25 @@ public class Robot extends TimedRobot {
       }
       if (altController.getRawButton(4)) {
         intake.set(DoubleSolenoid.Value.kForward);
+        it = true;
+        liftHeight = liftEncoder.getDistance()+0.1d;
+        Thread t3 = new Thread(){
+          public void run(){
+            
         Timer.delay(0.5);
+        it = false;
 
         encoderBackward(-200, 0.4);
+          }
+        };
+        t3.start();
       }
       // TODO camera code
-      if(altController.getRawButton(9)){
+      if (altController.getRawButton(9)) {
         scale = 1.0d;
       }
-      if(altController.getRawButton(10)){
-        scale = 1.0d/3.0d;
+      if (altController.getRawButton(10)) {
+        scale = 1.0d / 2.0d;
       }
     }
 
