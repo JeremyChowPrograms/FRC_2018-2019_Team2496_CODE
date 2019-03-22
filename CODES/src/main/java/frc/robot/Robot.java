@@ -42,48 +42,8 @@ public class Robot extends TimedRobot {
   public Robot() {
   }
 
-  private final int piWIDTH = 640;
-  private final int piHEIGHT = 480;
-  private double receivefrompi = 0.0d;
-
   @Override
   public void robotInit() {
-    Thread t = new Thread() {
-      public void run() {
-        try {
-          ServerSocket server = new ServerSocket(1234);
-          Socket pi = server.accept();
-          Scanner sc = new Scanner(pi.getInputStream());
-          while (!isInterrupted()) {
-            System.out.println("running");
-            try {
-              String tp1 = sc.next();
-              float x1 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
-              tp1 = sc.next();
-              float x2 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
-              tp1 = sc.next();
-              float y1 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
-              tp1 = sc.next();
-              float y2 = Float.parseFloat(tp1.substring(0, tp1.length() - 1));
-              float s1 = (x2 - x1) / (y2 - y1);
-              float lx1 = x1 - (s1 * y1);
-              receivefrompi = lx1;
-              System.out.println("lx1: " + lx1);
-            } catch (Exception e1) {
-              pi = server.accept();
-              sc = new Scanner(pi.getInputStream());
-              System.out.println("NOTHING");
-            }
-          }
-          sc.close();
-          server.close();
-        } catch (Exception e) {
-
-        }
-        System.out.println("thread ended");
-      }
-    };
-    t.start();
     // Ports according to design table
     chassis = new ChassisControl(2, 0, 1, 3);
 
@@ -111,7 +71,7 @@ public class Robot extends TimedRobot {
       camera = CameraServer.getInstance().startAutomaticCapture();
       camera.setBrightness(0);
       camera.setExposureAuto();
-      camera.setResolution(400, 300);
+      camera.setResolution(384, 288);
       camera.setFPS(120);
       camera.setWhiteBalanceAuto();
 
@@ -129,6 +89,8 @@ public class Robot extends TimedRobot {
   public void autonomousPeriodic() {
     teleopPeriodic();
   }
+
+  private boolean contClawIn = false;
 
   private void encoderForward(double distance, double baseSpeed) {
 
@@ -171,7 +133,6 @@ public class Robot extends TimedRobot {
 
   private PIDLib motorPid = new PIDLib(0.3, 0.001, 0.1, 0.01);
   private PIDLib motorPid2 = new PIDLib(0.03, 0.001, 0.1, 0.01);
-  private PIDLib motorPid3 = new PIDLib(0.003, 0.001, 0.1, 0.01);
   private PIDLib motorPid4 = new PIDLib(0.1, 0.001, 0.1, 0.01);
   private double output;
 
@@ -235,8 +196,19 @@ public class Robot extends TimedRobot {
         claw.set(-.7);
         claw2.set(-.7);
       } else {
-        claw.set(0.07);
-        claw2.set(0.07);
+        if (contClawIn) {
+          claw.set(0.2);
+          claw2.set(0.2);
+        } else {
+          claw.set(0.00);
+          claw2.set(0.00);
+        }
+      }
+      if (altController.getRawAxis(1) >= 0.5) {
+        contClawIn = true;
+      }
+      if (altController.getRawAxis(1) <= -0.5) {
+        contClawIn = false;
       }
       if (rightJoyStick.getRawButton(3)) {
         cball = false;
@@ -265,10 +237,10 @@ public class Robot extends TimedRobot {
         cball = true;
         liftHeight = 22.0d;
       }
-      if (leftJoyStick.getRawButton(8)) {
+      if (rightJoyStick.getRawButton(11)) {
         frntsol.set(DoubleSolenoid.Value.kForward);
       }
-      if (leftJoyStick.getRawButton(9)) {
+      if (rightJoyStick.getRawButton(10)) {
 
         frntsol.set(DoubleSolenoid.Value.kReverse);
       }
@@ -287,19 +259,19 @@ public class Robot extends TimedRobot {
       if (leftJoyStick.getRawButton(8)) {
         Timer.delay(0.5);
 
-        encoderForward(200, 0.4);
+        encoderForward(1000, 0.4);
       }
       if (altController.getRawButton(4)) {
         intake.set(DoubleSolenoid.Value.kForward);
         it = true;
-        liftHeight = liftEncoder.getDistance()+0.1d;
-        Thread t3 = new Thread(){
-          public void run(){
-            
-        Timer.delay(0.5);
-        it = false;
+        liftHeight = liftEncoder.getDistance() + 0.1d;
+        Thread t3 = new Thread() {
+          public void run() {
 
-        encoderBackward(-200, 0.4);
+            Timer.delay(0.5);
+            it = false;
+
+            encoderBackward(-200, 0.4);
           }
         };
         t3.start();
